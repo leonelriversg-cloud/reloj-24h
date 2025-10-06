@@ -1,5 +1,5 @@
 // Service Worker simple para caching
-const CACHE_NAME = 'reloj-24h-v1';
+const CACHE_NAME = 'reloj-24h';
 const urlsToCache = [
   '/',
   '/index.html',
