@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Agregar esto en el <head> después de los meta tags existentes -->
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Reloj 24h">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <title>Reloj 24h — Página Web (móvil)</title>
+  <style>
+    :root{
+      --bg:#0c2557;
+      --clock-bg:#ffffff77;
+      --accent:#0040ca;
+      --accent-2:#14202c;
+      --shadow: rgba(22, 33, 85, 0.219);
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background:var(--bg);
+      color:var(--accent);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .wrap{
+      min-height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      box-sizing:border-box;
+    }
+    .card{
+      width:100%;
+      max-width:520px;
+      aspect-ratio:1/1;
+      background:var(--clock-bg);
+      border-radius:18px;
+      box-shadow:0 8px 24px var(--shadow);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      box-sizing:border-box;
+    }
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      border-radius:12px;
+    }
+    .legend{
+      position:fixed;
+      left:12px;
+      right:12px;
+      top:12px;
+      display:flex;
+      justify-content:center;
+      gap:12px;
+      font-size:20px;
+      color:var(--accent);
+    }
+    .legend .item{background:#fff;padding:8px 10px;border-radius:10px;box-shadow:0 6px 14px rgba(5, 14, 53, 0.171);}
+    @media (max-width:420px){
+      .card{border-radius:14px;padding:12px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <canvas id="clock"></canvas>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="item">Reloj 24h </div>
+    <div class="item" id="timeReadable">--:--</div>
+  </div>
+  <script>
+    const canvas = document.getElementById('clock');
+    const ctx = canvas.getContext('2d');
+    const timeReadable = document.getElementById('timeReadable');
+
+    function fitCanvas(){
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+
+    function minuteAngle(minutes, seconds=0){
+      const totalMinutes = minutes + seconds/60;
+      return -Math.PI/2 + totalMinutes * (2*Math.PI/60);
+    }
+
+    function hourAngleFraction(hours, minutes){
+      const frac = (hours % 24) + minutes/60;
+      const ang = (Math.PI/2) + frac * (2*Math.PI/24);
+      return ang;
+    }
+
+    function draw(){
+      fitCanvas();
+      const {width, height} = canvas.getBoundingClientRect();
+      const cx = width/2;
+      const cy = height/2;
+      const r = Math.min(width, height)/2 * 0.92;
+
+      ctx.clearRect(0,0,width,height);
+
+      // fondo
+      ctx.beginPath();
+      ctx.arc(cx,cy,r,0,2*Math.PI);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+
+      // MARCAS DE MINUTOS INTERNAS (60 minutos) - ÁREA MÁS GRANDE
+      for(let i=0;i<60;i++){
+        const ang = -Math.PI/2 + i*(2*Math.PI/60);
+        const inner = r*0.89; // Más grande que antes (era 0.55)
+        const outer = r*0.96; // Más grande que antes (era 0.62)
+        
+        let lw = 1.5;
+        let len = outer - inner;
+        if(i % 5 === 0){
+          lw = 2;
+          len = len * 1.5;
+        }
+        
+        ctx.beginPath();
+        const x1 = cx + inner*Math.cos(ang);
+        const y1 = cy + inner*Math.sin(ang);
+        const x2 = cx + (inner+len)*Math.cos(ang);
+        const y2 = cy + (inner+len)*Math.sin(ang);
+        ctx.moveTo(x1,y1);
+        ctx.lineTo(x2,y2);
+        ctx.lineWidth = lw;
+        ctx.strokeStyle = i % 5 === 0 ? '#fff' : '#00498c';
+        ctx.stroke();
+      }
+
+      // NÚMEROS DE MINUTOS (5, 10 ,15, 30, 35, 40, 45, 50, 55, 60) - POSICIONES MÁS ALEJADAS
+      ctx.font = `bold ${Math.max(8, Math.round(r*0.08))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#0084ff';
+      
+      // 05 (arriba - 1:00)
+      const ang5 = -Math.PI/2 + 5*(2*Math.PI/60);
+      const x5 = cx + (r*0.94)*Math.cos(ang5);
+      const y5 = cy + (r*0.94)*Math.sin(ang5);
+      ctx.fillText('5', x5, y5);
+
+      // 10 (arriba - 2:00)
+      const ang10 = -Math.PI/2 + 10*(2*Math.PI/60);
+      const x10 = cx + (r*0.94)*Math.cos(ang10);
+      const y10 = cy + (r*0.94)*Math.sin(ang10);
+      ctx.fillText('10', x10, y10);
+
+      // 15 (derecha - 3:00)
+      const ang15 = -Math.PI/2 + 15*(2*Math.PI/60);
+      const x15 = cx + (r*0.94)*Math.cos(ang15); // Más alejado del centro
+      const y15 = cy + (r*0.35)*Math.sin(ang15);
+      ctx.fillText('15', x15, y15);
+
+      // 20 (arriba - 4:00)
+      const ang20 = -Math.PI/2 + 20*(2*Math.PI/60);
+      const x20 = cx + (r*0.94)*Math.cos(ang20);
+      const y20 = cy + (r*0.94)*Math.sin(ang20);
+      ctx.fillText('20', x20, y20);
+
+      // 25 (arriba - 5:00)
+      const ang25 = -Math.PI/2 + 25*(2*Math.PI/60);
+      const x25 = cx + (r*0.95)*Math.cos(ang25);
+      const y25 = cy + (r*0.94)*Math.sin(ang25);
+      ctx.fillText('25', x25, y25);
+      
+      // 30 (abajo - 6:00)
+      const ang30 = -Math.PI/2 + 30*(2*Math.PI/60);
+      const x30 = cx + (r*0.35)*Math.cos(ang30);
+      const y30 = cy + (r*0.94)*Math.sin(ang30);
+      ctx.fillText('30', x30, y30);
+
+      // 35 (abajo - 7:00)
+      const ang35 = -Math.PI/2 + 35*(2*Math.PI/60);
+      const x35 = cx + (r*0.94)*Math.cos(ang35);
+      const y35 = cy + (r*0.94)*Math.sin(ang35);
+      ctx.fillText('35', x35, y35)
+
+      // 40 (abajo - 8:00)
+      const ang40 = -Math.PI/2 + 40*(2*Math.PI/60);
+      const x40 = cx + (r*0.94)*Math.cos(ang40);
+      const y40 = cy + (r*0.94)*Math.sin(ang40);
+      ctx.fillText('40', x40, y40)
+      
+      // 45 (izquierda - 9:00)
+      const ang45 = -Math.PI/2 + 45*(2*Math.PI/60);
+      const x45 = cx + (r*0.94)*Math.cos(ang45);
+      const y45 = cy + (r*0.35)*Math.sin(ang45);
+      ctx.fillText('45', x45, y45);
+
+      // 55 (izquierda - 11:00)
+      const ang55 = -Math.PI/2 + 55*(2*Math.PI/60);
+      const x55 = cx + (r*0.94)*Math.cos(ang55);
+      const y55 = cy + (r*0.94)*Math.sin(ang55);
+      ctx.fillText('55', x55, y55);
+
+      // 50 (izquierda - 10:00)
+      const ang50 = -Math.PI/2 + 50*(2*Math.PI/60);
+      const x50 = cx + (r*0.94)*Math.cos(ang50);
+      const y50 = cy + (r*0.93)*Math.sin(ang50);
+      ctx.fillText('50', x50, y50);
+
+      // 60 (arriba - 12:00)
+      const ang60 = -Math.PI/2 + 0*(2*Math.PI/60);
+      const x60 = cx + (r*0.35)*Math.cos(ang60);
+      const y60 = cy + (r*0.94)*Math.sin(ang60);
+      ctx.fillText('60', x60, y60);
+
+      // MARCAS DE HORAS EXTERNAS (24 horas) - MÁS ALEJADAS
+      for(let i=0;i<24;i++){
+        const ang = (Math.PI/2) + i*(2*Math.PI/24);
+        const inner = r*0.60; // Más alejado que antes (era 0.75)
+        const outer = r*0.68; // Más alejado que antes (era 0.88)
+        let lw = 3;
+        let len = outer - inner;
+        if(i%6===0){ lw = 6; }
+        if(i%3===0 && i%6!==0){ lw = 3; }
+        ctx.beginPath();
+        const x1 = cx + inner*Math.cos(ang);
+        const y1 = cy + inner*Math.sin(ang);
+        const x2 = cx + (inner+len)*Math.cos(ang);
+        const y2 = cy + (inner+len)*Math.sin(ang);
+        ctx.moveTo(x1,y1);
+        ctx.lineTo(x2,y2);
+        ctx.lineWidth = lw;
+        ctx.strokeStyle = '#000330';
+        ctx.stroke();
+      }
+
+      // NÚMEROS DE HORAS (0-23) - MÁS ALEJADOS DEL BORDE
+      ctx.font = `${Math.max(14, Math.round(r*0.14))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for(let i=0;i<24;i++){
+        const ang = (Math.PI/2) + i*(2*Math.PI/24);
+        const labelR = r*0.78; // Más cerca del centro para alejarse del borde (era 0.95)
+        const x = cx + labelR*Math.cos(ang);
+        const y = cy + labelR*Math.sin(ang);
+        ctx.fillStyle =  (i===6||i===18) ?'#8c0000' : '#333';
+        const label = (i===24?0:i).toString();
+        ctx.fillText(label, x, y);
+      }
+
+      // anillo exterior - MÁS GRUESO Y MÁS SEPARADO
+      ctx.beginPath();
+      ctx.arc(cx,cy,r,0,2*Math.PI); // Más cerca del borde exterior
+      ctx.lineWidth = Math.max(3, r*0.02); // Más grueso
+      ctx.strokeStyle = '#111827';
+      ctx.stroke();
+
+      // centro
+      ctx.beginPath();
+      ctx.arc(cx,cy,Math.max(2, r*0.02),0,2*Math.PI);
+      ctx.fillStyle = '#8c0000';
+      ctx.fill();
+
+      // hora actual
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+
+      // Actualizar texto
+      const hoursDisplay = hours.toString().padStart(2,'0');
+      const minutesDisplay = minutes.toString().padStart(2,'0');
+      timeReadable.textContent = `${hoursDisplay}:${minutesDisplay}`;
+
+      // manecilla de la hora (24h) - MÁS LARGA PARA LLEGAR A LAS MARCAS
+      const hourAng = hourAngleFraction(hours, minutes);
+      const hourLen = r*0.60; // Más larga para llegar mejor a las marcas
+      ctx.beginPath();
+      ctx.lineCap = 'round';
+      ctx.moveTo(cx,cy);
+      ctx.lineTo(cx + hourLen*Math.cos(hourAng), cy + hourLen*Math.sin(hourAng));
+      ctx.lineWidth = Math.max(7, r*0.02);
+      ctx.strokeStyle = '#000330';
+      ctx.stroke();
+
+      // manecilla de minutos - MÁS LARGA PARA LLEGAR A LAS MARCAS
+      const minuteAng = minuteAngle(minutes, seconds);
+      const minuteLen = r*0.92; // Más larga para llegar mejor a las marcas
+      ctx.beginPath();
+      ctx.lineCap = 'round';
+      ctx.moveTo(cx,cy);
+      ctx.lineTo(cx + minuteLen*Math.cos(minuteAng), cy + minuteLen*Math.sin(minuteAng));
+      ctx.lineWidth = Math.max(2, r*0.020);
+      ctx.strokeStyle = '#0084ff';
+      ctx.stroke();
+
+      // círculo central más grande
+      ctx.beginPath();
+      ctx.arc(cx,cy,Math.max(2, r*0.04),0,2*Math.PI);
+      ctx.fillStyle = '#8c0000';
+      ctx.fill();
+
+      // reborde interior sutil
+      ctx.beginPath();
+      ctx.arc(cx,cy,r*0.88,0,2*Math.PI);
+      ctx.lineWidth = Math.max(1, r*0.005);
+      ctx.strokeStyle = '#00498c';
+      ctx.stroke();
+    }
+
+    function tick(){
+      draw();
+    }
+
+    window.addEventListener('resize', ()=>{
+      draw();
+    });
+
+    fitCanvas();
+    draw();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>
